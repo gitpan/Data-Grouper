@@ -1,0 +1,5 @@
+Revision history for Perl extension Data::Grouper.
+
+0.01  Thu Jan 10 18:24:44 2002
+   - original version; created by h2xs 1.19
+   - Modified from stable production code, work on docs
