@@ -3,7 +3,7 @@ package Data::Grouper;
 use strict;
 #use vars qw($VERSION);
 
-$Data::Grouper::VERSION = '0.05';
+$Data::Grouper::VERSION = '0.06';
 
 
 #
@@ -96,7 +96,10 @@ sub add_row
    my ($self,@row) = @_;
    my $options = $self->{OPTIONS};
    my (%h);
-   
+
+   warn "You must define COLNAMES when using add_row or DATA with arrayrefs.\n"
+      if not defined $options->{COLNAMES};
+      
    # Turn @row into a hash
    @h{ @{ $options->{COLNAMES} } } = @row;
 
@@ -155,6 +158,9 @@ sub add_hash
       # Must figure out rowidx based on $i and COLNAMES
       my $colname = $options->{SORTCOLS}->[$i];
 
+      warn "Item $colname in SORTCOLS does not correspond to COLNAMES.\n"
+         if (!grep {$_ eq $colname} @{$options->{COLNAMES}});
+         
       # If this is the first row, or it is a new value, create
       # new entries
       #
@@ -415,11 +421,11 @@ modules.
 
 
    my $grouper = new Data::Grouper(
-                   COLNAMES => [ 'STYLE','COLOR','DESCR','PRICE'],
-                   SORTCOLS => [ 'STYLE','COLOR' ]
+                   COLNAMES => [ 'CATEGORY','SUBCAT','DESCR','PRICE'],
+                   SORTCOLS => [ 'CATEGORY','SUBCAT' ]
                   );
 
-   $sql = 'select category, subcat, description, price from order_items order by style, color';
+   $sql = 'select category, subcat, description, price from order_items order by category, subcat';
    $aref = $dbh->selectall_arrayref($sql);
    $grouper->add_array($aref);
 
@@ -432,7 +438,7 @@ Lazy?  Me too.  The DATA param can use only two calls:
    $sql = 'select category, subcat, description, price from order_items order by style, color';
    $aref = $dbh->selectall_arrayref($sql, {Slice=>{}});
 
-   my $g = new Data::Grouper(DATA=>$aref,SORTCOLS=>['STYLE','COLOR']);
+   my $g = new Data::Grouper(DATA=>$aref,SORTCOLS=>['CATEGORY','SUBCAT']);
 
    $t = HTML::Template->new(filename=>'../foobar.htmlt');
    $t->param(OUTER=>$g->get_data());
@@ -703,7 +709,7 @@ Say you want to display these, grouped by genre.  You need to build
 
 and apply it to template
 
- <TMPL_VAR NAME=OUTER>
+ <TMPL_LOOP NAME=OUTER>
  <h2><TMPL_VAR NAME=GENRE></h2>
    <TMPL_LOOP NAME=INNER>
      <TMPL_VAR NAME=TITLE> <br>
@@ -758,7 +764,7 @@ David Ferrance (dave@ferrance.com)
 
 Data::Grouper - A module for using aggregating data for use with various Template modules.
 
-Copyright (C) 2001 David Ferrance (dave@ferrance.com).  All Rights Reserved. 
+Copyright (C) 2001,2002 David Ferrance (dave@ferrance.com).  All Rights Reserved. 
 
 This module is free software. It may be used, redistributed and/or modified under the same terms as perl itself. 
 

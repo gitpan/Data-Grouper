@@ -9,3 +9,6 @@ Revision history for Perl extension Data::Grouper.
    - Added data constructor param (Thanks to Mark Stosberg for idea)
 0.05
    - Doc improvements
+0.06
+   - Fix doc bugs (Thanks Max)
+   - Add some warns() for common pitfals (Max,Mark)

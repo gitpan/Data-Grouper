@@ -125,3 +125,12 @@ $aref = $g8->get_data();
    {
       print "ok 8\n";
    }
+
+# Here is a test that should fail w/ warning
+# not sure how to implement it right now so leaving it commented out
+#$grouper = new Data::Grouper(SORTCOLS=>['FICTION']); 
+#$grouper->add_row( ('hi','there') );
+
+# and another
+#$grouper = new Data::Grouper(COLNAMES=>['A','B'], SORTCOLS=>['FICTION']); 
+#$grouper->add_row( ('hi','there') );
