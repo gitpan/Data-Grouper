@@ -3,7 +3,7 @@ package Data::Grouper;
 use strict;
 #use vars qw($VERSION);
 
-$Data::Grouper::VERSION = '0.04';
+$Data::Grouper::VERSION = '0.05';
 
 
 #
@@ -435,7 +435,7 @@ Lazy?  Me too.  The DATA param can use only two calls:
    my $g = new Data::Grouper(DATA=>$aref,SORTCOLS=>['STYLE','COLOR']);
 
    $t = HTML::Template->new(filename=>'../foobar.htmlt');
-   $t->param($g->get_data());
+   $t->param(OUTER=>$g->get_data());
    print $t->output;
    
 And the fragment from the HTML::Template code:
@@ -579,9 +579,15 @@ example, to format money values.
 
 =head2 add_array
 
-DBI can return entire arrays with selectall_arrayref.  This
+The add_array function adds multiple rows into the grouper
+in one function call.  It takes one parameter, an array
+reference.  This array can contain either hash references
+or array references.  
+
+Add_array is especially useful with DBI.  DBI can return 
+entire arrays with selectall_arrayref.  This
 function lets you just pass an array ref in instead of doing
-a while loop and calling add_row for each row.
+a while loop and calling add_row (or add_hash) for each row.
 
    $aref = $dbh->selectall_arrayref($sql);
    $grouper->add_array($aref);
@@ -603,10 +609,21 @@ structure.
 
 =head2 add_hash
 
-This takes a hash ref as a parameter.  The has is assumed to contain 
-the keys from COLNAMES.  If COLNAMES was not specified, the keys
-from the first has are used.  Grouper makes its own copy of the 
-hash ref.
+This function is the hash-equivalent to add_row (above).  Add_hash
+takes one parameter, a hash reference, which contains one 
+row of data.  For example:
+
+  $href = { COLOR=>'Red', Size=>'13', Style=>'Running' };
+  add_hash ($href);
+
+This would add one row of data to the grouper.  To add multiple
+rows, for example if you had an array of hash refs from DBI,
+you would use add_array().
+
+The hash is assumed to contain the keys from COLNAMES.  If COLNAMES was not 
+specified, the keys from the first hash passed to this function are used.  
+Grouper makes its own copy of the hash ref to avoid modifying any data
+that is passed in.
 
 =head2 add_details
 

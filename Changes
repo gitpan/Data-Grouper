@@ -6,4 +6,6 @@ Revision history for Perl extension Data::Grouper.
 0.04  ?
    - Clarified COLNAMES documentation
    - Adding add_hash function
-   - Added data constructor param (Thanks to Mark Strosberg for idea)
+   - Added data constructor param (Thanks to Mark Stosberg for idea)
+0.05
+   - Doc improvements
