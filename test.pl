@@ -6,7 +6,7 @@
 # Change 1..1 below to 1..last_test_to_print .
 # (It may become useful if the test is moved to ./t subdirectory.)
 
-BEGIN { $| = 1; print "1..7\n"; }
+BEGIN { $| = 1; print "1..8\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Data::Grouper;
 $loaded = 1;
@@ -39,6 +39,7 @@ my $aref = $g->get_data();
 
    if ($#{$aref} != 0 )
    {
+
       print "not ok 2\n";
    }
    else
@@ -102,4 +103,25 @@ $aref = $g->get_top_aggregates();
    else
    {
       print "ok 7\n";
+   }
+
+
+
+# Test DATA, hashrefs
+
+my $aref8 = [ { lname=>'ferrance', fname=>'dave' },
+              { lname=>'ferrance', fname=>'susan' },
+              { lname=>'ferrari', fname=>'Modena' }
+            ];
+            
+my $g8 = new Data::Grouper( SORTCOLS => [ 'lname' ], DATA=>$aref8 );
+$aref = $g8->get_data();
+
+   if ( $#{$aref} != 1 )
+   {
+      print "not ok 8\n";
+   }
+   else
+   {
+      print "ok 8\n";
    }

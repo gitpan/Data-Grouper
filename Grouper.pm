@@ -3,7 +3,7 @@ package Data::Grouper;
 use strict;
 #use vars qw($VERSION);
 
-$Data::Grouper::VERSION = '0.03';
+$Data::Grouper::VERSION = '0.04';
 
 
 #
@@ -12,12 +12,11 @@ $Data::Grouper::VERSION = '0.03';
 #   COLNAMES => [ name, name, ... ]
 #   SORTCOLS => [ name, ... ]
 #   AGGREGATES => [ colidx, colidx, ... ]
+#   DATA => array of hashrefs or arrayrefs
 #
 #
 # Note: The lastvals array's indexes correspond to the 
-#       array indexes for SORTCOLS.  These indexes are
-#       matched to column names in the private hash 
-#       NAME2IDX.
+#       array indexes for SORTCOLS.  
 #
 sub new 
 {
@@ -54,16 +53,14 @@ sub new
    {
       $self->{OPTIONS}->{USE_AGGREGATES} = 1;
    }
-
-   # create hash from column name to index, used internally
-   my $idx = 0;
-   $self->{NAME2IDX} = {};
-   for my $colname (@{$self->{OPTIONS}->{COLNAMES}})
-   {
-      $self->{NAME2IDX}->{$colname} = $idx++;
-   }
    
    bless($self);
+
+   if (defined($self->{OPTIONS}->{DATA}))
+   {
+      $self->add_array($self->{OPTIONS}->{DATA});
+   }
+
    return $self;
 }
 
@@ -76,7 +73,14 @@ sub add_array
    my ($self,$aref) = @_;
    for my $r (@{$aref}) 
    {
-      $self->add_row(@{$r});
+      if (ref($r) eq 'HASH')
+      {
+         $self->add_hash($r);
+      }
+      else
+      {
+         $self->add_row(@{$r});
+      }
    }
 }
 
@@ -85,24 +89,43 @@ sub add_array
 # This is pretty much the most important function in this
 # module.
 #
+# This really should take a reference!!!!
+#
 sub add_row
 {
    my ($self,@row) = @_;
-   my (%h,$i);
-
-#   print "row: ", join ',',@row; print '<br>';
-
    my $options = $self->{OPTIONS};
-   my $sortcols = 1 + $#{ $options->{SORTCOLS} };
+   my (%h);
    
    # Turn @row into a hash
    @h{ @{ $options->{COLNAMES} } } = @row;
 
+   $self->add_hash(\%h);
+}
+
+sub add_hash
+{
+   my ($self,$href) = @_;
+
+   my $options = $self->{OPTIONS};
+   my $sortcols = 1 + $#{ $options->{SORTCOLS} };
+
+   # Automatically populate COLNAMES if it hasn't been done before
+   if ($#{$options->{COLNAMES}} == -1)
+   {
+      @{$options->{COLNAMES}} = keys ( %{$href} );
+   }
+
+
+   # Create our own copy.  We don't want to modify someone
+   # elses hash.
+   my %h2 = %{$href};
+   
    # apply format functions
    for my $fkey (keys(%{$options->{FORMAT}}))
    {
       my $fref = $options->{FORMAT}->{$fkey};
-      $h{$fkey} = &$fref($h{$fkey});
+      $h2{$fkey} = &$fref($h2{$fkey});
    }
    
    # describe aref here   
@@ -113,8 +136,7 @@ sub add_row
    {
       for my $colname (@{$options->{AGGREGATES}})
       {
-         my $colidx = $self->{NAME2IDX}->{$colname};
-         my $val = $row[$colidx];
+         my $val = $h2{$colname};
          $self->{TOPLEVEL_AGGS}->{"SUM_$colname"} += $val;
       }
    }   
@@ -128,11 +150,10 @@ sub add_row
    # $i in this loop is an index into the SORTCOLS and LASTVALS arrays.   
    #
    
-   for ($i=0;$i<$sortcols;$i++)
+   for (my $i=0;$i<$sortcols;$i++)
    {  
       # Must figure out rowidx based on $i and COLNAMES
       my $colname = $options->{SORTCOLS}->[$i];
-      my $rowidx = $self->{NAME2IDX}->{$colname};
 
       # If this is the first row, or it is a new value, create
       # new entries
@@ -141,7 +162,7 @@ sub add_row
       # floating point data.  Provide an option here?
       #
       if (!defined($self->{LASTVALS}->[$i]) ||
-          $self->{LASTVALS}->[$i] ne $row[$rowidx]
+          $self->{LASTVALS}->[$i] ne $h2{$colname}
          )
       {
  
@@ -154,7 +175,6 @@ sub add_row
          #
          if (defined($self->{LASTVALS}->[$i]))
          {
-            my $aref2 = $aref;        
             $self->_format_tails($aref);         
          }
 
@@ -165,33 +185,33 @@ sub add_row
          # other variables may be in @row, like IDs or something, that 
          # the author wants to use
          
-         my %h2 = %h;
-         $h2{INNER} = [];
-         push @{$aref}, \%h2;
+         my %h3 = %h2;
+         $h3{INNER} = [];
+         push @{$aref}, \%h3;
 
 
          if ($options->{USE_AGGREGATES} == 1)
          {
-            $self->_do_aggregates($aref,\@row);
+            $self->_do_aggregates($aref,\%h2);
          }
 
          
          # Set aref, our array pointer, to the array of the 
          # next inner element
-         $aref = $h2{INNER};
+         $aref = $h3{INNER};
 
          # undefine all vals after this in order to
          # force new arrays to be generated
          $#{$self->{LASTVALS}} = $i;
 
-         $self->{LASTVALS}->[$i] = $row[$rowidx];
+         $self->{LASTVALS}->[$i] = $h2{$colname};
       }
       else
       {
          # this is the place to do totals....
          if ($options->{USE_AGGREGATES} == 1)
          {
-            $self->_do_aggregates($aref,\@row);
+            $self->_do_aggregates($aref,\%h2);
          }         
 
          #Move to inner array
@@ -201,7 +221,7 @@ sub add_row
    }
 
    # We've found the right array, add the row
-   push @{$aref},\%h;
+   push @{$aref},\%h2;
    $self->{LASTADDED} = $aref;
 }
 
@@ -305,15 +325,23 @@ sub get_top_aggregates
 # Private functions
 #
 
+
+# _do_aggregates
+#
+# This helper function computes aggregates:
+#
 # SUM
 # AVG
 # COUNT
 # MIN
 # MAX
-
+#
+# $aref is an array reference into the structure we are building.
+# $hr_row is a hash reference of the hash of the row we are adding.
+#
 sub _do_aggregates
 {
-   my ($self,$aref,$ar_row) = @_;
+   my ($self,$aref,$hr_row) = @_;
    my $href = $aref->[$#{$aref}];
    
    #
@@ -323,8 +351,7 @@ sub _do_aggregates
    
    for my $colname (@{$self->{OPTIONS}->{AGGREGATES}})
    {
-      my $colidx = $self->{NAME2IDX}->{$colname};
-      my $val = $ar_row->[$colidx];
+      my $val = $hr_row->{$colname};
       
       $href->{"SUM_$colname"} += $val;
 
@@ -356,7 +383,7 @@ sub _format_tails
 {
    my ($self,$aref2) = @_;         
    my $options = $self->{OPTIONS};
-   
+      
    while (defined($aref2) && defined($#{$aref2}>=0 && $aref2->[-1]->{INNER}))
    {   
       for my $fkey (keys(%{$options->{FORMAT}}))
@@ -400,6 +427,17 @@ modules.
    $t->param(OUTER=>$grouper->get_data());
    print $t->output;
 
+Lazy?  Me too.  The DATA param can use only two calls:
+
+   $sql = 'select category, subcat, description, price from order_items order by style, color';
+   $aref = $dbh->selectall_arrayref($sql, {Slice=>{}});
+
+   my $g = new Data::Grouper(DATA=>$aref,SORTCOLS=>['STYLE','COLOR']);
+
+   $t = HTML::Template->new(filename=>'../foobar.htmlt');
+   $t->param($g->get_data());
+   print $t->output;
+   
 And the fragment from the HTML::Template code:
 
    <TMPL_LOOP NAME=OUTER>
@@ -464,16 +502,22 @@ passed to the constructor.
 
 COLNAMES - define column names for use with TMPL_VAR
 
-Tell grouper the column names
-These are used when creating the hashes for HTML:Template.  By
-default, each hash will have columns with names provided from 
-define_row.  So for the following code:
+Tell grouper the column names.
+These are used when creating the hashes for HTML:Template.  COLNAMES
+should contain the names of the hash values in the order the values
+will appear in the rows passed to add_row().
+So for the following code:
 
    COLNAMES => [ 'RESP_DESC','DUTY_ID', 'DUTY_DESC']
 
 The hashes in the output structure will have keys RESP_DESC, 
 DUTY_ID, and DUTY_DESC.  This allows them to be used in 
 <TMPL_VAR> directives.
+
+If you are using add_hash or add_array with an array of hash
+references, you may omit COLNAMES.  If COLNAMES is omitted,
+the keys of the first incoming hash will become the contents
+of COLNAMES.  Keep in mind that these are case sensitive.
 
 =item * 
 
@@ -502,6 +546,19 @@ will be equal to the number of column names you indicate here.
 
 The rows passed to grouper MUST BE SORTED on the columns
 indicated in SORT_COLS.
+
+=item *
+
+DATA - Array ref of hash or array refs
+
+If you are using selectall_arrayref and not modifying the data before
+sending it to grouper, you can reduce your grouper code to two calls
+by using the DATA parameter in the grouper->new() constructor:
+
+   my $g = new Data::Grouper(DATA=>$aref,SORTCOLS=>['STYLE','COLOR']);
+   $g->get_data();
+   
+This will often be your best approach.
 
 =item *
 
@@ -543,6 +600,13 @@ SORTCOLS.
 One reason to use add_row over add_array is if some transformation
 happens between retrieving the data and populating the data
 structure.
+
+=head2 add_hash
+
+This takes a hash ref as a parameter.  The has is assumed to contain 
+the keys from COLNAMES.  If COLNAMES was not specified, the keys
+from the first has are used.  Grouper makes its own copy of the 
+hash ref.
 
 =head2 add_details
 
